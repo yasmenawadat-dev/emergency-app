@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "219681039765",
+    "project_id": "najdaapp-be836",
+    "storage_bucket": "najdaapp-be836.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219681039765:android:a004b56f1d42465d7b029c",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDU9B1pxhVVbglZ-jnQYVN3KDAN47SvMbs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219681039765:android:0a5707e44eadec217b029c",
+        "android_client_info": {
+          "package_name": "com.example.najda"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDU9B1pxhVVbglZ-jnQYVN3KDAN47SvMbs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219681039765:android:c20bb536d55092ab7b029c",
+        "android_client_info": {
+          "package_name": "com.example.najda_fixed"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDU9B1pxhVVbglZ-jnQYVN3KDAN47SvMbs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
