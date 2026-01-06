@@ -1,7 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
-import
 import 'package:flutter/material.dart';
-import '../services/medical_profile_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MedicalHomePage extends StatefulWidget {
   const MedicalHomePage({super.key});
@@ -12,351 +12,382 @@ class MedicalHomePage extends StatefulWidget {
 
 class _MedicalHomePageState extends State<MedicalHomePage>
     with SingleTickerProviderStateMixin {
+  // Firebase
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  String get _uid => _auth.currentUser!.uid;
+
   late TabController _tabController;
 
-  // ScrollControllers لكل تبويبة
-  final ScrollController _scrollControllerTab1 = ScrollController();
-  final ScrollController _scrollControllerTab2 = ScrollController();
-  final ScrollController _scrollControllerTab3 = ScrollController();
-  final ScrollController _scrollControllerTab4 = ScrollController();
+  // Controllers
+  final fullNameCtrl = TextEditingController();
+  final dobCtrl = TextEditingController();
+  final allergiesCtrl = TextEditingController();
+  final chronicCtrl = TextEditingController();
 
-  bool showBackToTopTab1 = false;
-  bool showBackToTopTab2 = false;
-  bool showBackToTopTab3 = false;
-  bool showBackToTopTab4 = false;
+  final medsCtrl = TextEditingController();
+  final surgeryCtrl = TextEditingController();
+  final labCtrl = TextEditingController();
+  final notesCtrl = TextEditingController(); // **ملاحظات قصيرة للطبيب/المسعف**
 
-  // Controllers للبيانات (Tab 1)
-  final TextEditingController fullNameCtrl = TextEditingController();
-  final TextEditingController dobCtrl = TextEditingController();
+  // Data
   String selectedBloodType = 'غير محدد';
-  final List<String> bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'غير محدد'];
+  final bloodTypes = ['A+','A-','B+','B-','AB+','AB-','O+','O-','غير محدد'];
 
-  // Tab 2 & 3 Lists
   List<String> chronicDiseases = [];
+  List<String> medications = [];
   List<String> surgeries = [];
-  List<String> medicalHistory = [];
+  List<String> labTests = [];
+  List<String> notes = [];
 
-  // Tab 4 states (اختيار الجهات)
-  bool showHospitals = true;
-  bool showMedLab = true;
-  bool showFamilyDoctor = true;
-
-  final MedicalProfileService _service = MedicalProfileService();
+  // Share
+  bool shareHospitals = false;
+  bool shareFamilyDoctor = false;
+  bool shareNoOne = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _setupScrollListener(_scrollControllerTab1, (val) => setState(() => showBackToTopTab1 = val));
-    _setupScrollListener(_scrollControllerTab2, (val) => setState(() => showBackToTopTab2 = val));
-    _setupScrollListener(_scrollControllerTab3, (val) => setState(() => showBackToTopTab3 = val));
-    _setupScrollListener(_scrollControllerTab4, (val) => setState(() => showBackToTopTab4 = val));
-
+    _tabController = TabController(length: 3, vsync: this);
     _loadProfile();
   }
 
-  void _setupScrollListener(ScrollController controller, Function(bool) update) {
-    controller.addListener(() {
-      if (controller.offset > 200) {
-        update(true);
-      } else {
-        update(false);
-      }
+  // ================= Firebase =================
+
+  Future<void> _loadProfile() async {
+    final doc = await _firestore.collection('medical_profiles').doc(_uid).get();
+    if (!doc.exists) return;
+
+    final d = doc.data()!;
+    setState(() {
+      fullNameCtrl.text = d['fullName'] ?? '';
+      dobCtrl.text = d['dob'] ?? '';
+      selectedBloodType = d['bloodType'] ?? 'غير محدد';
+      allergiesCtrl.text = d['allergies'] ?? '';
+
+      chronicDiseases = List<String>.from(d['chronicDiseases'] ?? []);
+      medications = List<String>.from(d['medications'] ?? []);
+      surgeries = List<String>.from(d['surgeries'] ?? []);
+      labTests = List<String>.from(d['labTests'] ?? []);
+      notes = List<String>.from(d['notes'] ?? []);
+
+      shareHospitals = d['shareHospitals'] ?? false;
+      shareFamilyDoctor = d['shareFamilyDoctor'] ?? false;
+      shareNoOne = d['shareNoOne'] ?? false;
     });
   }
 
-  Future<void> _loadProfile() async {
-    final data = await _service.loadProfile();
-    if (data != null) {
-      setState(() {
-        fullNameCtrl.text = data['fullName'] ?? '';
-        dobCtrl.text = data['dob'] ?? '';
-        selectedBloodType = data['bloodType'] ?? 'غير محدد';
-        chronicDiseases = List<String>.from(data['chronicDiseases'] ?? []);
-        surgeries = List<String>.from(data['surgeries'] ?? []);
-        medicalHistory = List<String>.from(data['medicalHistory'] ?? []);
-        showHospitals = data['showHospitals'] ?? true;
-        showMedLab = data['showMedLab'] ?? true;
-        showFamilyDoctor = data['showFamilyDoctor'] ?? true;
-      });
-    }
-  }
-
   Future<void> _saveProfile() async {
-    final data = {
+    await _firestore.collection('medical_profiles').doc(_uid).set({
       'fullName': fullNameCtrl.text,
       'dob': dobCtrl.text,
       'bloodType': selectedBloodType,
+      'allergies': allergiesCtrl.text,
       'chronicDiseases': chronicDiseases,
+      'medications': medications,
       'surgeries': surgeries,
-      'medicalHistory': medicalHistory,
-      'showHospitals': showHospitals,
-      'showMedLab': showMedLab,
-      'showFamilyDoctor': showFamilyDoctor,
-    };
-    await _service.saveProfile(data);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم حفظ البيانات بنجاح!')),
-    );
+      'labTests': labTests,
+      'notes': notes,
+      'shareHospitals': shareHospitals,
+      'shareFamilyDoctor': shareFamilyDoctor,
+      'shareNoOne': shareNoOne,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('✅ تم الحفظ بنجاح')));
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    fullNameCtrl.dispose();
-    dobCtrl.dispose();
-    super.dispose();
-  }
+  // ================= Helpers =================
 
-  InputDecoration inputDecoration(String hint, IconData icon) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: const Color(0xFFF7F7F9),
-      prefixIcon: Icon(icon, color: Colors.red[300]),
-      contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14.0), borderSide: BorderSide.none),
-    );
-  }
-
-  Widget saveButton(VoidCallback onTap, {String text = 'حفظ المعلومات'}) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red[400],
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-      ),
-    );
-  }
-
-  Widget buildTab(ScrollController controller, bool showBackToTop, Widget content) {
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          controller: controller,
-          padding: const EdgeInsets.all(20),
-          child: content,
-        ),
-        if (showBackToTop)
-          Positioned(
-            bottom: 20,
-            left: 20,
-            child: FloatingActionButton(
-              mini: true,
-              onPressed: () => controller.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
-              backgroundColor: Colors.red[400],
-              child: const Icon(Icons.arrow_upward, color: Colors.white),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCardList(String title, List<String> items, VoidCallback onAdd, Function(int) onDelete) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            ...items.asMap().entries.map((entry) {
-              final index = entry.key;
-              final value = entry.value;
-              return Column(
-                children: [
-                  ListTile(
-                    title: Text(value),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.grey),
-                      onPressed: () => onDelete(index),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                ],
-              );
-            }),
-            ListTile(
-              leading: const Icon(Icons.add, color: Colors.blue),
-              title: const Text('إضافة', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-              onTap: onAdd,
-            ),
-          ],
-        ),
-      ),
-    );
+  int get _age {
+    if (dobCtrl.text.isEmpty) return 0;
+    final dob = DateTime.parse(dobCtrl.text);
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) age--;
+    return age;
   }
 
   Future<void> _pickDate() async {
-    DateTime? picked = await showDatePicker(
+    final d = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: DateTime(2000),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
-    if (picked != null) {
-      setState(() => dobCtrl.text = "${picked.year}-${picked.month.toString().padLeft(2,'0')}-${picked.day.toString().padLeft(2,'0')}");
+    if (d != null) {
+      dobCtrl.text =
+          '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
     }
   }
 
-  Future<void> _addItemDialog(List<String> list, String title) async {
-    final controller = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('أضف $title'),
-        content: TextField(controller: controller),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                setState(() => list.add(controller.text));
-              }
-              Navigator.pop(ctx);
+  InputDecoration dec(String h, IconData i, {bool critical = false}) =>
+      InputDecoration(
+        hintText: h,
+        filled: true,
+        fillColor: critical ? const Color(0xFFFFF3F3) : const Color(0xFFF7F7F9),
+        prefixIcon: Icon(i, color: critical ? Colors.red : Colors.red[300]),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+      );
+
+  Widget note(String text) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.red.shade50,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.info, color: Colors.red),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text)),
+      ],
+    ),
+  );
+
+  Widget chipsSection(
+    String title,
+    TextEditingController ctrl,
+    List<String> list,
+    String hint,
+    IconData icon,
+  ) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title),
+          const SizedBox(height: 6),
+          TextField(
+            controller: ctrl,
+            decoration: dec(hint, icon),
+            onSubmitted: (v) {
+              if (v.trim().isEmpty) return;
+              setState(() {
+                list.add(v.trim());
+                ctrl.clear();
+              });
             },
-            child: const Text('إضافة'),
           ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: list
+                .map((e) => Chip(
+                      label: Text(e),
+                      deleteIcon: const Icon(Icons.close),
+                      onDeleted: () => setState(() => list.remove(e)),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 20),
         ],
-      ),
-    );
-  }
+      );
+
+  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: Colors.red,
+          icon: const Icon(Icons.emergency),
+          label: const Text('بطاقة الطوارئ'),
+          onPressed: _showEmergencyCard,
+        ),
         appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              Icon(Icons.medical_information, color: Colors.red[400]),
-              const SizedBox(width: 10),
-              Text('الملف الطبي الخاص بي', style: TextStyle(color: Colors.red[600], fontWeight: FontWeight.bold)),
-            ],
-          ),
+          title: const Text('ملفي الطبي'),
           bottom: TabBar(
             controller: _tabController,
-            isScrollable: true,
-            indicatorColor: Colors.red[400],
-            labelColor: Colors.red[600],
-            unselectedLabelColor: Colors.grey,
             tabs: const [
-              Tab(text: 'الأساسية'),
-              Tab(text: 'معلومات مساعدة'),
+              Tab(text: 'المعلومات الأساسية'),
               Tab(text: 'السجل الطبي'),
-              Tab(text: 'مشاركة البيانات'),
+              Tab(text: 'المشاركة'),
             ],
           ),
         ),
         body: TabBarView(
           controller: _tabController,
           children: [
-            // Tab 1
-            buildTab(_scrollControllerTab1, showBackToTopTab1, Column(
-              children: [
-                TextField(controller: fullNameCtrl, decoration: inputDecoration('الاسم الكامل', Icons.person)),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: dobCtrl,
-                  readOnly: true,
-                  decoration: inputDecoration('تاريخ الميلاد', Icons.calendar_today),
-                  onTap: _pickDate,
-                ),
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('فصيلة الدم'),
-                  subtitle: Text(selectedBloodType, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.arrow_drop_down),
-                  onTap: () async {
-                    final type = await showDialog<String>(
-                      context: context,
-                      builder: (ctx) => SimpleDialog(
-                        title: const Text('اختر فصيلة الدم'),
-                        children: bloodTypes.map((b) => SimpleDialogOption(
-                          onPressed: () => Navigator.pop(ctx, b),
-                          child: Text(b),
-                        )).toList(),
-                      ),
-                    );
-                    if (type != null) setState(() => selectedBloodType = type);
-                  },
-                ),
-                const SizedBox(height: 20),
-                saveButton(_saveProfile),
-              ],
-            )),
+            _tabBasic(),
+            _tabHistory(),
+            _tabShare(),
+          ],
+        ),
+      ),
+    );
+  }
 
-            // Tab 2
-            buildTab(_scrollControllerTab2, showBackToTopTab2, Column(
-              children: [
-                _buildCardList('الأمراض المزمنة', chronicDiseases,
-                  () => _addItemDialog(chronicDiseases, 'مرض مزمن'),
-                  (i) => setState(() => chronicDiseases.removeAt(i))
-                ),
-                const SizedBox(height: 12),
-                _buildCardList('العمليات الجراحية', surgeries,
-                  () => _addItemDialog(surgeries, 'عملية جراحية'),
-                  (i) => setState(() => surgeries.removeAt(i))
-                ),
-                const SizedBox(height: 20),
-                saveButton(_saveProfile),
-              ],
-            )),
+  // ================= Tabs =================
 
-            // Tab 3
-            buildTab(_scrollControllerTab3, showBackToTopTab3, Column(
-              children: [
-                _buildCardList('تفاصيل السجل الطبي', medicalHistory,
-                  () => _addItemDialog(medicalHistory, 'سجل طبي'),
-                  (i) => setState(() => medicalHistory.removeAt(i))
-                ),
-                const SizedBox(height: 20),
-                saveButton(_saveProfile),
-              ],
-            )),
+  Widget _tabBasic() => ListView(
+    padding: const EdgeInsets.all(20),
+    children: [
+      note('هذه المعلومات الطبية الأساسية قد تُنقذ حياتك في حالات الطوارئ'),
+      const SizedBox(height: 20),
 
-            // Tab 4
-            buildTab(_scrollControllerTab4, showBackToTopTab4, Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('اختيار الجهات الطبية لعرض بياناتك:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 15),
-                CheckboxListTile(
-                  title: const Text('جميع مستشفيات المملكة'),
-                  value: showHospitals,
-                  activeColor: Colors.red,
-                  onChanged: (v) => setState(() => showHospitals = v!),
-                ),
-                CheckboxListTile(
-                  title: const Text('مختبرات ميد لابس'),
-                  value: showMedLab,
-                  activeColor: Colors.red,
-                  onChanged: (v) => setState(() => showMedLab = v!),
-                ),
-                CheckboxListTile(
-                  title: const Text('طبيب العائلة الخاص'),
-                  value: showFamilyDoctor,
-                  activeColor: Colors.red,
-                  onChanged: (v) => setState(() => showFamilyDoctor = v!),
-                ),
-                const SizedBox(height: 30),
-                saveButton(_saveProfile, text: 'تحديث صلاحيات العرض'),
-              ],
-            )),
+      const Text('الاسم الكامل'),
+      TextField(controller: fullNameCtrl, decoration: dec('اسمك', Icons.person)),
+
+      const SizedBox(height: 16),
+      const Text('تاريخ الميلاد'),
+      GestureDetector(
+        onTap: _pickDate,
+        child: AbsorbPointer(
+          child: TextField(
+            controller: dobCtrl,
+            decoration: dec('اختر التاريخ', Icons.cake),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 16),
+      const Text('فصيلة الدم'),
+      DropdownButtonFormField(
+        value: selectedBloodType,
+        decoration: dec('', Icons.bloodtype),
+        items: bloodTypes
+            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+            .toList(),
+        onChanged: (v) => setState(() => selectedBloodType = v!),
+      ),
+
+      const SizedBox(height: 16),
+      const Text('حساسية من أدوية ⚠️'),
+      TextField(
+        controller: allergiesCtrl,
+        decoration: dec('مثال: بنسلين', Icons.warning, critical: true),
+      ),
+
+      const SizedBox(height: 16),
+      chipsSection(
+        'الأمراض المزمنة',
+        chronicCtrl,
+        chronicDiseases,
+        'مثال: سكري، ضغط',
+        Icons.medical_services,
+      ),
+
+      ElevatedButton(onPressed: _saveProfile, child: const Text('حفظ')),
+    ],
+  );
+
+  Widget _tabHistory() => ListView(
+    padding: const EdgeInsets.all(20),
+    children: [
+      note('معلوماتك الطبية تساعد الطبيب على اتخاذ القرار الصحيح لإكمال علاجك'),
+      const SizedBox(height: 20),
+
+      chipsSection('💊 الأدوية الحالية', medsCtrl, medications,
+          'مثال: ميتفورمين', Icons.medication),
+
+      chipsSection('🩺 العمليات الجراحية', surgeryCtrl, surgeries,
+          'مثال: زراعة كلى، قلب مفتوح', Icons.healing),
+
+      chipsSection('🧪 الفحوصات المخبرية', labCtrl, labTests,
+          'مثال: فحص دم شامل', Icons.science),
+
+      chipsSection(
+        '📝 ملاحظة قصيرة للطبيب أو المسعف',
+        notesCtrl,
+        notes,
+        'مثال: أخاف من التخدير / تواصل مع أهلي قبل أي إجراء',
+        Icons.note,
+      ),
+
+      ElevatedButton(onPressed: _saveProfile, child: const Text('حفظ')),
+    ],
+  );
+
+  Widget _tabShare() => ListView(
+    padding: const EdgeInsets.all(20),
+    children: [
+      note('اختر الجهات المسموح لها بالاطلاع على معلوماتك الطبية عند الحاجة'),
+      const SizedBox(height: 20),
+
+      CheckboxListTile(
+        title: const Text('جميع المستشفيات'),
+        value: shareHospitals,
+        onChanged: shareNoOne
+            ? null
+            : (v) => setState(() => shareHospitals = v!),
+      ),
+
+      CheckboxListTile(
+        title: const Text('طبيب العائلة'),
+        value: shareFamilyDoctor,
+        onChanged: shareNoOne
+            ? null
+            : (v) => setState(() => shareFamilyDoctor = v!),
+      ),
+
+      CheckboxListTile(
+        title: const Text('لا أحد'),
+        value: shareNoOne,
+        onChanged: (v) => setState(() {
+          shareNoOne = v!;
+          if (v) {
+            shareHospitals = false;
+            shareFamilyDoctor = false;
+          }
+        }),
+      ),
+
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: _saveProfile, child: const Text('حفظ')),
+
+      const SizedBox(height: 12),
+      const Text(
+        'في تطبيق نجدة لا يهدف فقط لإنقاذ الحياة في لحظة الخطر،\n'
+        'بل لمساعدة الفريق الطبي على اتخاذ القرار الصحيح بعد النجاة.',
+        style: TextStyle(color: Colors.grey),
+      ),
+    ],
+  );
+
+  // ================= Emergency =================
+
+  void _showEmergencyCard() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '🚨 بطاقة الطوارئ',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const Divider(),
+
+            Text('👤 الاسم: ${fullNameCtrl.text.isEmpty ? 'غير محدد' : fullNameCtrl.text}'),
+            const SizedBox(height: 6),
+
+            Text('🎂 العمر: ${_age > 0 ? '$_age سنة' : 'غير محدد'}'),
+            const SizedBox(height: 6),
+
+            Text('🩸 فصيلة الدم: $selectedBloodType'),
+            const SizedBox(height: 6),
+
+            Text(
+              '⚠️ الحساسية: ${allergiesCtrl.text.isEmpty ? 'لا يوجد' : allergiesCtrl.text}',
+            ),
+            const SizedBox(height: 6),
+
+            Text(
+              '🩺 الأمراض المزمنة: ${chronicDiseases.isEmpty ? 'لا يوجد' : chronicDiseases.join('، ')}',
+            ),
           ],
         ),
       ),
